@@ -1,573 +1,1173 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ド・モルガンの法則 マスター</title>
-    <!-- Tailwind CSS (Play CDN) -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        /* カスタムアニメーション */
-        .animate-in { animation: fadeIn 0.3s ease-out forwards; }
-        .zoom-in { animation: zoomIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-        
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes zoomIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-    </style>
-</head>
-<body class="bg-slate-100 text-slate-800 font-sans selection:bg-blue-200 min-h-screen pb-12">
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
+  RotateCcw,
+  Award,
+  BookOpen,
+  Play,
+  Info,
+} from 'lucide-react';
 
-    <!-- ヘッダー -->
-    <header class="bg-white shadow-sm border-b border-slate-200 px-4 py-4 flex items-center justify-center relative">
-        <i data-lucide="book-open" class="w-6 h-6 text-blue-600 mr-2"></i>
-        <h1 class="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">ド・モルガンの法則 マスター</h1>
-        <button id="btn-quit" class="hidden absolute left-4 text-sm font-medium text-slate-500 hover:text-slate-800">
+// --- サブコンポーネント ---
+
+const Overline = ({ children }) => (
+  <span className="border-t-[3px] border-slate-800 px-1 mx-[2px] inline-block leading-none pt-1 mt-1">
+    {children}
+  </span>
+);
+
+const Formula = ({ children }) => (
+  <div className="text-4xl md:text-5xl font-serif text-slate-800 my-6 flex items-center justify-center space-x-2 pb-2">
+    {children}
+  </div>
+);
+
+const ResultFeedback = ({ isCorrect, explanation }) => (
+  <div
+    className={`mt-6 p-5 rounded-2xl border-2 shadow-sm animate-in fade-in slide-in-from-bottom-2 ${
+      isCorrect
+        ? 'bg-green-50 border-green-200 text-green-800'
+        : 'bg-red-50 border-red-200 text-red-800'
+    }`}
+  >
+    <div className="flex items-center space-x-2 font-bold text-lg md:text-xl mb-3">
+      {isCorrect ? (
+        <CheckCircle2 className="w-7 h-7 text-green-500" />
+      ) : (
+        <XCircle className="w-7 h-7 text-red-500" />
+      )}
+      <span>{isCorrect ? '大正解！' : 'ざんねん… 正解の領域を表示しました。'}</span>
+    </div>
+    <div className="flex items-start space-x-3 bg-white/60 p-3 rounded-xl border border-white/50">
+      <Info className="w-5 h-5 mt-0.5 flex-shrink-0 opacity-70" />
+      <p className="text-sm md:text-base font-medium leading-relaxed">{explanation}</p>
+    </div>
+  </div>
+);
+
+// --- データ定義 ---
+
+const getRegionCode2 = (x, y) => {
+  const inA = Math.hypot(x - 150, y - 150) <= 80;
+  const inB = Math.hypot(x - 250, y - 150) <= 80;
+  return `${inA ? 1 : 0}${inB ? 1 : 0}`;
+};
+
+const getRegionCode3 = (x, y) => {
+  const inA = Math.hypot(x - 160, y - 130) <= 75;
+  const inB = Math.hypot(x - 240, y - 130) <= 75;
+  const inC = Math.hypot(x - 200, y - 200) <= 75;
+  return `${inA ? 1 : 0}${inB ? 1 : 0}${inC ? 1 : 0}`;
+};
+
+const problemSets = {
+  easy: [
+    {
+      id: 'e1',
+      formula: (
+        <>
+          <Overline>A ∪ B</Overline>
+        </>
+      ),
+      text: 'AとBの和集合の補集合',
+      correct: ['00'],
+      explanation: 'AとBのどちらにも入っていない「外側」の領域です。',
+    },
+    {
+      id: 'e2',
+      formula: (
+        <>
+          <Overline>A</Overline> ∩ <Overline>B</Overline>
+        </>
+      ),
+      text: 'Aの補集合とBの補集合の積集合',
+      correct: ['00'],
+      explanation:
+        'Aの外側であり、かつBの外側でもある領域です。さっきの「和集合の補集合」と同じ領域ですね！これがド・モルガンの法則です。',
+    },
+    {
+      id: 'e3',
+      formula: (
+        <>
+          <Overline>A ∩ B</Overline>
+        </>
+      ),
+      text: 'AとBの積集合の補集合',
+      correct: ['00', '01', '10'],
+      explanation: 'AとBが重なっている部分「以外」のすべての領域です。',
+    },
+    {
+      id: 'e4',
+      formula: (
+        <>
+          <Overline>A</Overline> ∪ <Overline>B</Overline>
+        </>
+      ),
+      text: 'Aの補集合とBの補集合の和集合',
+      correct: ['00', '01', '10'],
+      explanation:
+        'Aの外側、またはBの外側である領域です。これも「積集合の補集合」と同じ領域になります！',
+    },
+    {
+      id: 'e5',
+      formula: (
+        <>
+          <Overline>
+            <span className="inline-block mt-1">
+              <Overline>A</Overline> ∩ <Overline>B</Overline>
+            </span>
+          </Overline>
+        </>
+      ),
+      text: '(Aの補集合とBの補集合の積集合)の補集合',
+      correct: ['10', '01', '11'],
+      explanation:
+        'ド・モルガンの法則を逆に使うと、A ∪ B になります。2つのどちらかに入っている領域です。',
+    },
+    {
+      id: 'e6',
+      formula: (
+        <>
+          <Overline>
+            <span className="inline-block mt-1">
+              <Overline>A</Overline> ∪ <Overline>B</Overline>
+            </span>
+          </Overline>
+        </>
+      ),
+      text: '(Aの補集合とBの補集合の和集合)の補集合',
+      correct: ['11'],
+      explanation:
+        'ド・モルガンの法則により、これは A ∩ B を表します。AとBの両方に入っている重なりの部分です。',
+    },
+    {
+      id: 'e7',
+      formula: (
+        <>
+          A ∪ <Overline>B</Overline>
+        </>
+      ),
+      text: 'Aと、Bの補集合の和集合',
+      correct: ['10', '11', '00'],
+      explanation:
+        '「Aに入っている」か「Bの外側である」領域をすべて塗ります。Bだけに入っている領域以外すべてになります。',
+    },
+    {
+      id: 'e8',
+      formula: (
+        <>
+          <Overline>A</Overline> ∩ B
+        </>
+      ),
+      text: 'Aの補集合と、Bの積集合',
+      correct: ['01'],
+      explanation:
+        '「Aの外側」であり、かつ「Bに入っている」領域。つまり、BからAの重なりを引いた三日月型の部分です。',
+    },
+    {
+      id: 'e9',
+      formula: (
+        <>
+          <Overline>A ∩ (A ∪ B)</Overline>
+        </>
+      ),
+      text: '「A」と「AまたはB」の積集合、の補集合',
+      correct: ['00', '01'],
+      explanation:
+        '「A」と「AまたはB」が重なる部分は、結局「A」だけです（吸収法則）。その補集合なので、Aの外側すべてになります。',
+    },
+    {
+      id: 'e10',
+      formula: (
+        <>
+          <Overline>A</Overline> ∪ (A ∩ B)
+        </>
+      ),
+      text: 'Aの補集合、または「AとBの積集合」',
+      correct: ['00', '01', '11'],
+      explanation:
+        '「Aの外側すべて」と「両方が重なっている部分」を合わせた領域です。Aだけに入っている三日月部分以外すべてになります。',
+    },
+    {
+      id: 'e11',
+      formula: (
+        <>
+          <Overline>A ∩ B</Overline> ∩ A
+        </>
+      ),
+      text: 'AとBの積集合の補集合、かつ A',
+      correct: ['10'],
+      explanation:
+        '「重なり部分以外」のうち、「Aに入っている」領域。つまりAだけに入っている三日月型の部分になります。',
+    },
+    {
+      id: 'e12',
+      formula: (
+        <>
+          <Overline>
+            A ∪ <Overline>A</Overline>
+          </Overline>
+        </>
+      ),
+      text: '「A」と「Aの補集合」の和集合、の補集合',
+      correct: [],
+      explanation:
+        '引っかけ問題！Aとその外側を合わせると「全体」になります。その否定なので「どこにもない」が正解。何も塗らないのが大正解です！',
+    },
+  ],
+  medium: [
+    {
+      id: 'm1',
+      formula: (
+        <>
+          <Overline>A ∩ <Overline>B</Overline></Overline>
+        </>
+      ),
+      text: '(Aと、Bの補集合の積集合)の補集合',
+      correct: ['00', '01', '11'],
+      explanation:
+        'ド・モルガンの法則により、~A ∪ B と同じになります。Aの外側、またはBの内側であるすべての領域です。',
+    },
+    {
+      id: 'm2',
+      formula: (
+        <>
+          <Overline>A</Overline> ∩ <Overline><Overline>B</Overline></Overline>
+        </>
+      ),
+      text: 'Aの補集合と、Bの「補集合の補集合」の積集合',
+      correct: ['01'],
+      explanation:
+        '2重のバー（否定の否定）は打ち消し合って元に戻ります！つまり ~A ∩ B となり、Bだけに属する領域になります。',
+    },
+    {
+      id: 'm3',
+      formula: (
+        <>
+          <Overline><Overline>A ∪ B</Overline> ∪ (A ∩ B)</Overline>
+        </>
+      ),
+      text: '(AとBの外側)と(積集合)を合わせた領域の、全体の補集合',
+      correct: ['10', '01'],
+      explanation:
+        '内側は「両方の外側」と「両方の内側」を合わせた領域。その全体を否定するので、「どちらか片方だけ」の領域になります。',
+    },
+    {
+      id: 'm4',
+      formula: (
+        <>
+          <Overline>
+            <span className="inline-block mt-1">
+              <Overline>A</Overline> ∪ B
+            </span>
+          </Overline>
+        </>
+      ),
+      text: '(Aの補集合とBの和集合)の補集合',
+      correct: ['10'],
+      explanation:
+        '大きなバーに注目してド・モルガンを使うと、A ∩ ~B になります。Aだけに属する領域ですね！',
+    },
+    {
+      id: 'm5',
+      formula: (
+        <>
+          <Overline>A ∪ <Overline>B</Overline></Overline>
+        </>
+      ),
+      text: '(Aと、Bの補集合の和集合)の補集合',
+      correct: ['01'],
+      explanation:
+        'ド・モルガンの法則により、~A ∩ B になります。Aの外側かつBの内側、つまりBだけの領域です。',
+    },
+    {
+      id: 'm6',
+      formula: (
+        <>
+          <Overline><Overline>A</Overline> ∩ B</Overline>
+        </>
+      ),
+      text: '(Aの補集合とBの積集合)の補集合',
+      correct: ['00', '10', '11'],
+      explanation:
+        'ド・モルガンの法則を使うと、A ∪ ~B となります。Bだけに入っている部分「以外」のすべてです。',
+    },
+    {
+      id: 'm7',
+      formula: (
+        <>
+          A ∩ <Overline>A ∩ B</Overline>
+        </>
+      ),
+      text: 'Aと、「AとBの積集合の補集合」の積集合',
+      correct: ['10'],
+      explanation:
+        '「Aの中」であり、かつ「AとBの重なり以外」。つまり、Aだけの領域を取り出す式です。',
+    },
+    {
+      id: 'm8',
+      formula: (
+        <>
+          <Overline>A ∪ B</Overline> ∪ (A ∩ B)
+        </>
+      ),
+      text: '和集合の補集合と、積集合の和集合',
+      correct: ['00', '11'],
+      explanation:
+        '「両方の外側」と「両方の内側（重なり）」を足し合わせた領域。排他的論理和のちょうど逆ですね。',
+    },
+    {
+      id: 'm9',
+      formula: (
+        <>
+          <Overline>
+            <span className="inline-block mt-1">
+              <Overline>A</Overline> ∩ <Overline>B</Overline>
+            </span>
+          </Overline>
+        </>
+      ),
+      text: '(Aの補集合とBの補集合の積集合)の補集合',
+      correct: ['10', '01', '11'],
+      explanation:
+        '大きなバーに対してド・モルガンを適用すると、なんとただの A ∪ B に戻ります！',
+    },
+    {
+      id: 'm10',
+      formula: (
+        <>
+          <Overline>A ∪ B</Overline> ∩ <Overline>A ∩ B</Overline>
+        </>
+      ),
+      text: '和集合の補集合、かつ積集合の補集合',
+      correct: ['00'],
+      explanation:
+        '「AかBのどちらかに入っている領域以外」と「重なり以外」の共通部分は、結局「どちらにも入っていない外側」になります。',
+    },
+    {
+      id: 'm11',
+      formula: (
+        <>
+          <Overline>A ∪ B</Overline> ∩ A
+        </>
+      ),
+      text: '和集合の補集合、かつ A',
+      correct: [],
+      explanation:
+        '「AとBのどちらにも入っていない外側」でありながら「Aに入っている」領域は…存在しません！何も塗らないのが正解です。',
+    },
+    {
+      id: 'm12',
+      formula: (
+        <>
+          <Overline>
+            <span className="inline-block mt-1">
+              <Overline>A</Overline> ∪ B
+            </span>
+          </Overline>{' '}
+          ∪ B
+        </>
+      ),
+      text: '(Aの補集合とBの和集合)の補集合、または B',
+      correct: ['10', '01', '11'],
+      explanation:
+        '左側をド・モルガンで整理すると (A ∩ ~B) 。それに B を合わせるので、結果として A ∪ B と同じ領域になります！',
+    },
+  ],
+  hard: [
+    {
+      id: 'h1',
+      formula: (
+        <>
+          <Overline>A ∪ B ∪ C</Overline>
+        </>
+      ),
+      text: 'A,B,Cの和集合の補集合',
+      correct: ['000'],
+      explanation: '3つの円のどれにも入っていない「外側」の領域です。',
+    },
+    {
+      id: 'h2',
+      formula: (
+        <>
+          <Overline>A</Overline> ∩ <Overline>B</Overline> ∩ <Overline>C</Overline>
+        </>
+      ),
+      text: 'A,B,Cの補集合の積集合',
+      correct: ['000'],
+      explanation:
+        '3つの集合になってもド・モルガンの法則は成り立ちます！和集合の否定は、それぞれの否定の積集合です。',
+    },
+    {
+      id: 'h3',
+      formula: (
+        <>
+          <Overline>A ∩ B ∩ C</Overline>
+        </>
+      ),
+      text: 'A,B,Cの積集合の補集合',
+      correct: ['000', '001', '010', '011', '100', '101', '110'],
+      explanation: '3つすべてが重なっている真ん中「以外」のすべての領域です。',
+    },
+    {
+      id: 'h4',
+      formula: (
+        <>
+          <Overline>A</Overline> ∪ <Overline>B</Overline> ∪ <Overline>C</Overline>
+        </>
+      ),
+      text: 'A,B,Cの補集合の和集合',
+      correct: ['000', '001', '010', '011', '100', '101', '110'],
+      explanation:
+        '積集合の否定は、それぞれの否定の和集合になります。集合が増えても美しい法則ですね！',
+    },
+    {
+      id: 'h5',
+      formula: (
+        <>
+          <Overline>A ∪ B</Overline> ∩ <Overline>C</Overline>
+        </>
+      ),
+      text: 'AとBの和集合の補集合、かつCの補集合',
+      correct: ['000'],
+      explanation:
+        'Aの外側、Bの外側、さらにCの外側。つまり ~(A ∪ B ∪ C) と同じくすべての外側です！',
+    },
+    {
+      id: 'h6',
+      formula: (
+        <>
+          <Overline>A ∩ B</Overline> ∪ <Overline>C</Overline>
+        </>
+      ),
+      text: 'AとBの積集合の補集合、またはCの補集合',
+      correct: ['000', '001', '010', '100', '011', '101', '110'],
+      explanation:
+        '積集合に入っておらず、さらにCにも入っていない部分の和集合。これは ~(A ∩ B ∩ C) と同じ領域になります！',
+    },
+    {
+      id: 'h7',
+      formula: (
+        <>
+          A ∩ <Overline>B ∪ C</Overline>
+        </>
+      ),
+      text: 'Aと、(BとCの和集合)の補集合の積集合',
+      correct: ['100'],
+      explanation:
+        '「Aに入っている」かつ「BにもCにも入っていない」。つまりAの円のうち、他の円と重なっていない部分です。',
+    },
+    {
+      id: 'h8',
+      formula: (
+        <>
+          <Overline>A ∪ C</Overline> ∩ B
+        </>
+      ),
+      text: '(AとCの和集合)の補集合、かつB',
+      correct: ['010'],
+      explanation:
+        '「AにもCにも入っていない」かつ「Bに入っている」。Bの円のうち、他の円と重なっていない単独の部分ですね。',
+    },
+    {
+      id: 'h9',
+      formula: (
+        <>
+          <Overline>A</Overline> ∩ B ∩ C
+        </>
+      ),
+      text: 'Aの補集合、かつB、かつC',
+      correct: ['011'],
+      explanation:
+        'BとCの両方に入っていて、Aには入っていない領域。BとCの重なりから真ん中を引いた部分です。',
+    },
+    {
+      id: 'h10',
+      formula: (
+        <>
+          A ∪ <Overline>B ∪ C</Overline>
+        </>
+      ),
+      text: 'A、または「BとCの和集合の補集合」',
+      correct: ['100', '110', '101', '111', '000'],
+      explanation:
+        '「Aの円すべて」と「BにもCにも入っていない部分(外側)」を合わせた領域です。',
+    },
+    {
+      id: 'h11',
+      formula: (
+        <>
+          <Overline>A ∪ B</Overline> ∪ C
+        </>
+      ),
+      text: '「AとBの和集合の補集合」、または C',
+      correct: ['000', '001', '101', '011', '111'],
+      explanation:
+        '「AにもBにも入っていない部分(外側)」と「Cの円すべて」を合わせた領域です。',
+    },
+    {
+      id: 'h12',
+      formula: (
+        <>
+          <Overline>A</Overline> ∩ <Overline>B</Overline> ∩ C
+        </>
+      ),
+      text: 'Aの補集合、かつBの補集合、かつC',
+      correct: ['001'],
+      explanation:
+        '「Aに入っていない」かつ「Bに入っていない」かつ「Cに入っている」。Cの円のうち、他の円と重なっていない単独の部分です。',
+    },
+  ],
+  expert: [
+    {
+      id: 'ex1',
+      formula: (
+        <>
+          <Overline>A ∪ B</Overline> ∩ C
+        </>
+      ),
+      text: 'AとBの和集合の補集合、かつ C',
+      correct: ['001'],
+      explanation:
+        'ド・モルガンの法則により、~A ∩ ~B ∩ C と同じです。AでもBでもなく、Cにだけ入っている領域ですね。',
+    },
+    {
+      id: 'ex2',
+      formula: (
+        <>
+          <Overline>A ∩ B</Overline> ∩ C
+        </>
+      ),
+      text: 'AとBの積集合の補集合、かつ C',
+      correct: ['001', '011', '101'],
+      explanation:
+        'AとBの両方に入っている部分「以外」で、なおかつCに入っている領域をすべて選びます。',
+    },
+    {
+      id: 'ex3',
+      formula: (
+        <>
+          <Overline>A</Overline> ∩ <Overline>B ∪ C</Overline>
+        </>
+      ),
+      text: 'Aの補集合、かつ (BとCの和集合)の補集合',
+      correct: ['000'],
+      explanation:
+        '実はこれ、全体を覆う ~(A ∪ B ∪ C) と全く同じ「すべての外側」になります！法則を使って式を整理すると見えてきますね。',
+    },
+    {
+      id: 'ex4',
+      formula: (
+        <>
+          <Overline>
+            <span className="inline-block mt-1">
+              <Overline>A</Overline> ∩ <Overline>B</Overline>
+            </span>
+          </Overline>{' '}
+          ∩ C
+        </>
+      ),
+      text: '(Aの補集合とBの補集合の積集合)の補集合、かつ C',
+      correct: ['101', '011', '111'],
+      explanation:
+        '大きなバーに注目！ド・モルガンの法則により、左側の複雑な式は実は (A ∪ B) になります。つまり「AかBのどちらかに入っていて、かつCに入る領域」です。',
+    },
+    {
+      id: 'ex5',
+      formula: (
+        <>
+          <Overline>A ∪ B ∪ C</Overline> ∪ (A ∩ B ∩ C)
+        </>
+      ),
+      text: '和集合の補集合、または3つの積集合',
+      correct: ['000', '111'],
+      explanation:
+        '「どの円にも入っていない外側」と「すべての円が重なるど真ん中」だけを合わせた領域です。',
+    },
+    {
+      id: 'ex6',
+      formula: (
+        <>
+          <Overline>
+            <span className="inline-block mt-1">
+              <Overline>A</Overline> ∪ <Overline>B</Overline> ∪ <Overline>C</Overline>
+            </span>
+          </Overline>
+        </>
+      ),
+      text: '(A,B,Cの補集合の和集合)の補集合',
+      correct: ['111'],
+      explanation:
+        '長〜いバーに注目！全体にド・モルガンを適用すると、なんと A ∩ B ∩ C に。ど真ん中だけを指す式です。',
+    },
+    {
+      id: 'ex7',
+      formula: (
+        <>
+          <Overline>
+            <span className="inline-block mt-1">
+              <Overline>A ∪ B</Overline> ∩ <Overline>C</Overline>
+            </span>
+          </Overline>
+        </>
+      ),
+      text: '(「AとBの和集合の補集合」かつ「Cの補集合」)の全体補集合',
+      correct: ['001', '010', '011', '100', '101', '110', '111'],
+      explanation:
+        '内側は ~A ∩ ~B ∩ ~C (すべての外側) です。その否定なので、外側「以外」のすべての領域(A ∪ B ∪ C)になります！',
+    },
+    {
+      id: 'ex8',
+      formula: (
+        <>
+          <Overline>A ∩ B</Overline> ∪ <Overline>B ∩ C</Overline>
+        </>
+      ),
+      text: 'AとBの積集合の補集合、またはBとCの積集合の補集合',
+      correct: ['000', '001', '010', '011', '100', '101', '110'],
+      explanation:
+        '「AとBの重なり以外」と「BとCの重なり以外」を合わせます。実はこれ、真ん中の(A ∩ B ∩ C)以外すべてになります。',
+    },
+    {
+      id: 'ex9',
+      formula: (
+        <>
+          <Overline>
+            <span className="inline-block mt-1">
+              <Overline>A ∩ B</Overline> ∪ C
+            </span>
+          </Overline>
+        </>
+      ),
+      text: '(「AとBの積集合の補集合」またはC)の全体補集合',
+      correct: ['110'],
+      explanation:
+        '全体にド・モルガンを使うと (A ∩ B) ∩ ~C になります。AとBが重なっていて、Cには入っていない領域だけが残ります。',
+    },
+    {
+      id: 'ex10',
+      formula: (
+        <>
+          <Overline>A ∪ B</Overline> ∪ <Overline>B ∪ C</Overline>
+        </>
+      ),
+      text: '「AとBの和集合の補集合」または「BとCの和集合の補集合」',
+      correct: ['000', '100', '001'],
+      explanation:
+        '法則で整理すると ~B ∩ (~A ∪ ~C) となります。「Bに入っておらず、かつAかCのどちらかにも入っていない」領域です。',
+    },
+    {
+      id: 'ex11',
+      formula: (
+        <>
+          <Overline>
+            <span className="inline-block mt-1">
+              A ∪ <Overline>B ∪ C</Overline>
+            </span>
+          </Overline>
+        </>
+      ),
+      text: '(A、または「BとCの和集合の補集合」)の全体補集合',
+      correct: ['010', '001', '011'],
+      explanation:
+        '全体にド・モルガンを使うと ~A ∩ (B ∪ C) に。Aには入っておらず、BかCには入っている領域になります。',
+    },
+    {
+      id: 'ex12',
+      formula: (
+        <>
+          <Overline>(A ∩ B) ∪ (B ∩ C) ∪ (C ∩ A)</Overline>
+        </>
+      ),
+      text: '「2つ以上が重なっているすべての領域」の補集合',
+      correct: ['000', '100', '010', '001'],
+      explanation:
+        '重なり合っている部分をすべて否定します。結果として「どれとも重なっていない単独の領域」と「全体の外側」だけが残ります。',
+    },
+  ],
+};
+
+// --- メインコンポーネント ---
+
+export default function DeMorganGame() {
+  const GAS_URL = 'ここにApps ScriptのWebアプリURLを貼る';
+
+  const [gameState, setGameState] = useState('menu');
+  const [level, setLevel] = useState('easy');
+  const [playerName, setPlayerName] = useState('');
+  const [currentProblemIndex, setCurrentProblemIndex] = useState(0);
+  const [shuffledProblems, setShuffledProblems] = useState([]);
+  const [selectedRegions, setSelectedRegions] = useState([]);
+  const [hasChecked, setHasChecked] = useState(false);
+  const [isCorrect, setIsCorrect] = useState(false);
+  const [score, setScore] = useState(0);
+  const [playedProblemIds, setPlayedProblemIds] = useState(new Set());
+  const [hasSavedResult, setHasSavedResult] = useState(false);
+
+  const QUESTIONS_PER_PLAY = 4;
+  const canvasRef = useRef(null);
+
+  const levelNames = {
+    easy: '初級コース',
+    medium: '中級コース',
+    hard: '上級コース',
+    expert: '応用コース',
+  };
+
+  const saveResult = async ({ name, level, score, total }) => {
+    if (!GAS_URL || GAS_URL.includes('ここに')) {
+      console.warn('GAS_URL が未設定です');
+      return { ok: false, message: 'GAS_URL が未設定です' };
+    }
+
+    try {
+      const response = await fetch(GAS_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'text/plain;charset=utf-8',
+        },
+        body: JSON.stringify({
+          name,
+          level,
+          score,
+          total,
+          userAgent: navigator.userAgent,
+          playedAt: new Date().toISOString(),
+        }),
+      });
+
+      const result = await response.json();
+      return result;
+    } catch (error) {
+      console.error('スコア送信失敗:', error);
+      return { ok: false, message: error.toString() };
+    }
+  };
+
+  const startGame = (selectedLevel) => {
+    const inputName = window.prompt('名前を入れてください', playerName || '') || '名無し';
+
+    setPlayerName(inputName);
+    setLevel(selectedLevel);
+
+    const allProblems = problemSets[selectedLevel];
+    const currentPlayedIds = new Set(playedProblemIds);
+
+    let availableProblems = allProblems.filter((p) => !currentPlayedIds.has(p.id));
+
+    if (availableProblems.length < QUESTIONS_PER_PLAY) {
+      allProblems.forEach((p) => currentPlayedIds.delete(p.id));
+      availableProblems = [...allProblems];
+    }
+
+    const shuffled = [...availableProblems]
+      .sort(() => 0.5 - Math.random())
+      .slice(0, QUESTIONS_PER_PLAY);
+
+    shuffled.forEach((p) => currentPlayedIds.add(p.id));
+
+    setPlayedProblemIds(currentPlayedIds);
+    setShuffledProblems(shuffled);
+    setCurrentProblemIndex(0);
+    setScore(0);
+    setSelectedRegions([]);
+    setHasChecked(false);
+    setIsCorrect(false);
+    setHasSavedResult(false);
+    setGameState('playing');
+  };
+
+  const handleCanvasClick = (e) => {
+    if (hasChecked) return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = 400 / rect.width;
+    const scaleY = 300 / rect.height;
+    const x = (e.clientX - rect.left) * scaleX;
+    const y = (e.clientY - rect.top) * scaleY;
+
+    const getRegion =
+      level === 'easy' || level === 'medium' ? getRegionCode2 : getRegionCode3;
+
+    const region = getRegion(x, y);
+
+    setSelectedRegions((prev) =>
+      prev.includes(region) ? prev.filter((r) => r !== region) : [...prev, region]
+    );
+  };
+
+  const handleCheck = () => {
+    const currentProblem = shuffledProblems[currentProblemIndex];
+    if (!currentProblem) return;
+
+    if (selectedRegions.length === 0 && currentProblem.correct.length !== 0) {
+      alert('ベン図の領域をタップして色を塗ってください！');
+      return;
+    }
+
+    const correct =
+      selectedRegions.length === currentProblem.correct.length &&
+      currentProblem.correct.every((r) => selectedRegions.includes(r));
+
+    setIsCorrect(correct);
+
+    if (correct) {
+      setScore((prev) => prev + 1);
+    } else {
+      setSelectedRegions(currentProblem.correct);
+    }
+
+    setHasChecked(true);
+  };
+
+  const nextProblem = () => {
+    const isLast = currentProblemIndex === shuffledProblems.length - 1;
+
+    if (isLast) {
+      setGameState('result');
+      return;
+    }
+
+    setCurrentProblemIndex((prev) => prev + 1);
+    setSelectedRegions([]);
+    setHasChecked(false);
+    setIsCorrect(false);
+  };
+
+  useEffect(() => {
+    if (gameState !== 'result' || hasSavedResult || shuffledProblems.length === 0) return;
+
+    const submit = async () => {
+      const result = await saveResult({
+        name: playerName || '名無し',
+        level: levelNames[level],
+        score,
+        total: shuffledProblems.length,
+      });
+
+      console.log('保存結果:', result);
+      setHasSavedResult(true);
+    };
+
+    submit();
+  }, [gameState, hasSavedResult, playerName, level, score, shuffledProblems.length]);
+
+  useEffect(() => {
+    if (gameState !== 'playing') return;
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const logicalWidth = 400;
+    const logicalHeight = 300;
+    const dpr = window.devicePixelRatio || 1;
+
+    canvas.width = logicalWidth * dpr;
+    canvas.height = logicalHeight * dpr;
+    canvas.style.width = '100%';
+    canvas.style.height = 'auto';
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, logicalWidth, logicalHeight);
+
+    const offCanvas = document.createElement('canvas');
+    offCanvas.width = logicalWidth;
+    offCanvas.height = logicalHeight;
+    const offCtx = offCanvas.getContext('2d');
+
+    const imgData = offCtx.createImageData(logicalWidth, logicalHeight);
+    const data = imgData.data;
+
+    const getRegion =
+      level === 'easy' || level === 'medium' ? getRegionCode2 : getRegionCode3;
+
+    const colorSelected = [191, 219, 254, 255];
+    const colorUnselected = [248, 250, 252, 255];
+
+    for (let y = 0; y < logicalHeight; y++) {
+      for (let x = 0; x < logicalWidth; x++) {
+        const region = getRegion(x, y);
+        const isSelectedNow = selectedRegions.includes(region);
+        const color = isSelectedNow ? colorSelected : colorUnselected;
+
+        const index = (y * logicalWidth + x) * 4;
+        data[index] = color[0];
+        data[index + 1] = color[1];
+        data[index + 2] = color[2];
+        data[index + 3] = color[3];
+      }
+    }
+
+    offCtx.putImageData(imgData, 0, 0);
+    ctx.drawImage(offCanvas, 0, 0);
+
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 2.5;
+    ctx.font = 'bold 24px serif';
+    ctx.fillStyle = '#0f172a';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    if (level === 'easy' || level === 'medium') {
+      ctx.beginPath();
+      ctx.arc(150, 150, 80, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(250, 150, 80, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillText('A', 110, 150);
+      ctx.fillText('B', 290, 150);
+    } else {
+      ctx.beginPath();
+      ctx.arc(160, 130, 75, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(240, 130, 75, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(200, 200, 75, 0, Math.PI * 2);
+      ctx.stroke();
+
+      ctx.fillText('A', 130, 100);
+      ctx.fillText('B', 270, 100);
+      ctx.fillText('C', 200, 230);
+    }
+
+    ctx.strokeRect(1, 1, logicalWidth - 2, logicalHeight - 2);
+    ctx.font = 'italic 20px serif';
+    ctx.fillText('U', 25, 25);
+  }, [gameState, level, selectedRegions]);
+
+  const currentProblem = shuffledProblems[currentProblemIndex];
+
+  return (
+    <div className="min-h-screen bg-slate-100 text-slate-800 font-sans selection:bg-blue-200 pb-12">
+      <header className="bg-white shadow-sm border-b border-slate-200 px-4 py-4 flex items-center justify-center relative">
+        <BookOpen className="w-6 h-6 text-blue-600 mr-2" />
+        <h1 className="text-xl md:text-2xl font-bold text-slate-900 tracking-tight">
+          ド・モルガンの法則 マスター
+        </h1>
+        {gameState !== 'menu' && (
+          <button
+            onClick={() => setGameState('menu')}
+            className="absolute left-4 text-sm font-medium text-slate-500 hover:text-slate-800"
+          >
             やめる
-        </button>
-    </header>
+          </button>
+        )}
+      </header>
 
-    <main class="max-w-lg mx-auto mt-8 px-4">
-        
-        <!-- ==================== メニュー画面 ==================== -->
-        <div id="view-menu" class="animate-in">
-            <div class="bg-white rounded-3xl p-8 shadow-xl border border-slate-100 text-center relative overflow-hidden">
-                <div class="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-400 to-indigo-500"></div>
-                <h2 class="text-3xl font-extrabold mb-4 text-slate-900">論理の美しさを学ぼう</h2>
-                <p class="text-slate-600 mb-8 leading-relaxed">
-                    数式が表す領域をベン図で塗りつぶすゲームです。<br/>
-                    プレイを通して、集合の魔法「ド・モルガンの法則」を視覚的に理解できます。
+      <main className="max-w-lg mx-auto mt-8 px-4">
+        {gameState === 'menu' && (
+          <div className="animate-in fade-in zoom-in-95 duration-300">
+            <div className="bg-white rounded-3xl p-8 shadow-xl border border-slate-100 text-center relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-blue-400 to-indigo-500" />
+              <h2 className="text-3xl font-extrabold mb-4 text-slate-900">
+                論理の美しさを学ぼう
+              </h2>
+              <p className="text-slate-600 mb-4 leading-relaxed">
+                数式が表す領域をベン図で塗りつぶすゲームです。
+                <br />
+                プレイを通して、集合の魔法「ド・モルガンの法則」を視覚的に理解できます。
+              </p>
+
+              {playerName && (
+                <p className="text-sm text-slate-500 mb-8">
+                  プレイヤー名: <span className="font-bold">{playerName}</span>
                 </p>
-                
-                <div class="space-y-4">
-                    <button onclick="startGame('easy')" class="w-full group relative bg-white border-2 border-blue-200 hover:border-blue-500 hover:bg-blue-50 text-blue-800 font-bold py-4 px-6 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-between">
-                        <div class="text-left">
-                            <div class="text-xl">初級コース</div>
-                            <div class="text-sm font-normal opacity-80 mt-1">2つの集合 (A, B) の基礎</div>
-                        </div>
-                        <i data-lucide="play" class="w-6 h-6 text-blue-500 group-hover:scale-110 transition-transform"></i>
-                    </button>
+              )}
 
-                    <button onclick="startGame('medium')" class="w-full group relative bg-white border-2 border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50 text-emerald-800 font-bold py-4 px-6 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-between">
-                        <div class="text-left">
-                            <div class="text-xl">中級コース</div>
-                            <div class="text-sm font-normal opacity-80 mt-1">2つの集合 (A, B) の応用</div>
-                        </div>
-                        <i data-lucide="play" class="w-6 h-6 text-emerald-500 group-hover:scale-110 transition-transform"></i>
-                    </button>
-                    
-                    <button onclick="startGame('hard')" class="w-full group relative bg-white border-2 border-indigo-200 hover:border-indigo-500 hover:bg-indigo-50 text-indigo-800 font-bold py-4 px-6 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-between">
-                        <div class="text-left">
-                            <div class="text-xl">上級コース</div>
-                            <div class="text-sm font-normal opacity-80 mt-1">3つの集合 (A, B, C) の応用</div>
-                        </div>
-                        <i data-lucide="play" class="w-6 h-6 text-indigo-500 group-hover:scale-110 transition-transform"></i>
-                    </button>
-
-                    <button onclick="startGame('expert')" class="w-full group relative bg-white border-2 border-purple-200 hover:border-purple-500 hover:bg-purple-50 text-purple-800 font-bold py-4 px-6 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-between">
-                        <div class="text-left">
-                            <div class="text-xl">応用コース</div>
-                            <div class="text-sm font-normal opacity-80 mt-1">複雑な式の組み合わせ</div>
-                        </div>
-                        <i data-lucide="play" class="w-6 h-6 text-purple-500 group-hover:scale-110 transition-transform"></i>
-                    </button>
-                </div>
-            </div>
-        </div>
-
-        <!-- ==================== ゲームプレイ画面 ==================== -->
-        <div id="view-playing" class="hidden animate-in">
-            <!-- プログレスバー -->
-            <div class="mb-6">
-                <div class="flex justify-between text-sm font-bold text-slate-500 mb-2 px-1">
-                    <span id="progress-text">問題 1 / 4</span>
-                    <span id="score-text">スコア: 0</span>
-                </div>
-                <div class="h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                    <div id="progress-bar" class="h-full bg-blue-500 transition-all duration-500 ease-out" style="width: 0%;"></div>
-                </div>
-            </div>
-
-            <div class="bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-100 text-center">
-                <p class="text-slate-500 font-medium mb-2">指定された数式が表す領域をタップして塗ろう</p>
-                
-                <!-- 数式表示エリア -->
-                <div id="problem-formula" class="text-4xl md:text-5xl font-serif text-slate-800 my-6 flex items-center justify-center space-x-2 pb-2">
-                    <!-- JSで数式を挿入 -->
-                </div>
-                <p id="problem-text" class="text-lg font-bold text-slate-700 mb-6 bg-slate-50 inline-block px-4 py-2 rounded-lg border border-slate-200">
-                    <!-- JSで問題文を挿入 -->
-                </p>
-                
-                <!-- キャンバスエリア -->
-                <div class="relative mx-auto max-w-[400px]">
-                    <canvas id="game-canvas" class="w-full h-auto bg-white rounded-xl shadow-inner border-2 border-blue-100 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all" style="aspect-ratio: 4/3;"></canvas>
-                </div>
-
-                <!-- アクションボタンエリア -->
-                <div class="mt-8">
-                    <!-- 判定前 -->
-                    <div id="action-uncheck" class="flex space-x-3">
-                        <button id="btn-clear" class="flex-1 py-4 px-2 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center text-sm md:text-base">
-                            <i data-lucide="rotate-ccw" class="w-5 h-5 md:mr-2"></i>
-                            <span class="hidden md:inline">クリア</span>
-                        </button>
-                        <button id="btn-check" class="flex-[2] py-4 px-4 rounded-xl font-bold bg-blue-600 text-white shadow-md hover:bg-blue-700 hover:shadow-lg transition-all active:scale-[0.98] flex items-center justify-center text-lg">
-                            <i data-lucide="check-circle-2" class="w-6 h-6 mr-2"></i>
-                            これで判定！
-                        </button>
+              <div className="space-y-4">
+                <button
+                  onClick={() => startGame('easy')}
+                  className="w-full group bg-white border-2 border-blue-200 hover:border-blue-500 hover:bg-blue-50 text-blue-800 font-bold py-4 px-6 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-between"
+                >
+                  <div className="text-left">
+                    <div className="text-xl">初級コース</div>
+                    <div className="text-sm font-normal opacity-80 mt-1">
+                      2つの集合 (A, B) の基礎
                     </div>
-                    
-                    <!-- 判定後（フィードバック） -->
-                    <div id="action-checked" class="hidden space-y-6">
-                        <div id="feedback-container" class="mt-6 p-5 rounded-2xl border-2 shadow-sm animate-in">
-                            <div class="flex items-center space-x-2 font-bold text-lg md:text-xl mb-3">
-                                <span id="feedback-icon"></span>
-                                <span id="feedback-title"></span>
-                            </div>
-                            <div class="flex items-start space-x-3 bg-white/60 p-3 rounded-xl border border-white/50">
-                                <i data-lucide="info" class="w-5 h-5 mt-0.5 flex-shrink-0 opacity-70"></i>
-                                <p id="feedback-explanation" class="text-sm md:text-base font-medium leading-relaxed text-left"></p>
-                            </div>
-                        </div>
-                        <button id="btn-next" class="w-full py-4 px-4 rounded-xl font-bold bg-slate-800 text-white shadow-md hover:bg-slate-900 transition-all active:scale-[0.98] flex items-center justify-center text-lg">
-                            <!-- JSでテキストを挿入 -->
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- ==================== リザルト画面 ==================== -->
-        <div id="view-result" class="hidden zoom-in">
-            <div class="bg-white rounded-3xl p-8 shadow-xl border border-slate-100 text-center py-12">
-                <i data-lucide="award" class="w-24 h-24 mx-auto text-yellow-500 mb-6 drop-shadow-md"></i>
-                <h2 class="text-3xl font-extrabold mb-2 text-slate-900">結果発表</h2>
-                <div id="result-level" class="text-slate-500 mb-6 font-medium">コース名</div>
-                
-                <div class="text-6xl font-black text-blue-600 mb-6 font-serif">
-                    <span id="result-score">0</span> <span id="result-total" class="text-3xl text-slate-400 font-sans">/ 4</span>
-                </div>
-                
-                <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-8 inline-block">
-                    <p id="result-message" class="text-lg font-bold text-slate-800"></p>
-                </div>
-                
-                <button onclick="goToMenu()" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-2xl shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center text-lg">
-                    タイトルに戻る
+                  </div>
+                  <Play className="w-6 h-6 text-blue-500 group-hover:scale-110 transition-transform" />
                 </button>
+
+                <button
+                  onClick={() => startGame('medium')}
+                  className="w-full group bg-white border-2 border-emerald-200 hover:border-emerald-500 hover:bg-emerald-50 text-emerald-800 font-bold py-4 px-6 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-between"
+                >
+                  <div className="text-left">
+                    <div className="text-xl">中級コース</div>
+                    <div className="text-sm font-normal opacity-80 mt-1">
+                      2つの集合 (A, B) の応用
+                    </div>
+                  </div>
+                  <Play className="w-6 h-6 text-emerald-500 group-hover:scale-110 transition-transform" />
+                </button>
+
+                <button
+                  onClick={() => startGame('hard')}
+                  className="w-full group bg-white border-2 border-indigo-200 hover:border-indigo-500 hover:bg-indigo-50 text-indigo-800 font-bold py-4 px-6 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-between"
+                >
+                  <div className="text-left">
+                    <div className="text-xl">上級コース</div>
+                    <div className="text-sm font-normal opacity-80 mt-1">
+                      3つの集合 (A, B, C) の応用
+                    </div>
+                  </div>
+                  <Play className="w-6 h-6 text-indigo-500 group-hover:scale-110 transition-transform" />
+                </button>
+
+                <button
+                  onClick={() => startGame('expert')}
+                  className="w-full group bg-white border-2 border-purple-200 hover:border-purple-500 hover:bg-purple-50 text-purple-800 font-bold py-4 px-6 rounded-2xl shadow-sm hover:shadow-md transition-all flex items-center justify-between"
+                >
+                  <div className="text-left">
+                    <div className="text-xl">応用コース</div>
+                    <div className="text-sm font-normal opacity-80 mt-1">
+                      複雑な式の組み合わせ
+                    </div>
+                  </div>
+                  <Play className="w-6 h-6 text-purple-500 group-hover:scale-110 transition-transform" />
+                </button>
+              </div>
             </div>
-        </div>
+          </div>
+        )}
 
-    </main>
+        {gameState === 'playing' && currentProblem && (
+          <div className="animate-in fade-in duration-300">
+            <div className="mb-6">
+              <div className="flex justify-between text-sm font-bold text-slate-500 mb-2 px-1">
+                <span>
+                  問題 {currentProblemIndex + 1} / {shuffledProblems.length}
+                </span>
+                <span>スコア: {score}</span>
+              </div>
+              <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-500 ease-out"
+                  style={{ width: `${(currentProblemIndex / shuffledProblems.length) * 100}%` }}
+                />
+              </div>
+            </div>
 
-    <script>
-        // === ユーティリティ・データ構築 ===
-        
-        // 補集合のオーバーライン用HTMLジェネレーター
-        const O = (t) => `<span class="border-t-[3px] border-slate-800 px-1 mx-[2px] inline-block leading-none pt-1 mt-1">${t}</span>`;
-        // 入れ子時のレイアウト調整用HTMLジェネレーター
-        const I = (t) => `<span class="inline-block mt-1">${t}</span>`;
+            <div className="bg-white rounded-3xl p-6 md:p-8 shadow-xl border border-slate-100 text-center">
+              <p className="text-slate-500 font-medium mb-2">
+                指定された数式が表す領域をタップして塗ろう
+              </p>
 
-        // 座標から領域コードを取得 (2集合)
-        const getRegionCode2 = (x, y) => {
-            const inA = Math.hypot(x - 150, y - 150) <= 80;
-            const inB = Math.hypot(x - 250, y - 150) <= 80;
-            return `${inA ? 1 : 0}${inB ? 1 : 0}`;
-        };
+              <Formula>{currentProblem.formula}</Formula>
 
-        // 座標から領域コードを取得 (3集合)
-        const getRegionCode3 = (x, y) => {
-            const inA = Math.hypot(x - 160, y - 130) <= 75;
-            const inB = Math.hypot(x - 240, y - 130) <= 75;
-            const inC = Math.hypot(x - 200, y - 200) <= 75;
-            return `${inA ? 1 : 0}${inB ? 1 : 0}${inC ? 1 : 0}`;
-        };
+              <p className="text-lg font-bold text-slate-700 mb-6 bg-slate-50 inline-block px-4 py-2 rounded-lg border border-slate-200">
+                {currentProblem.text}
+              </p>
 
-        // 問題データ定義
-        const problemSets = {
-            easy: [
-                { id: 'e1', formula: O('A ∪ B'), text: "AとBの和集合の補集合", correct: ["00"], explanation: "AとBのどちらにも入っていない「外側」の領域です。" },
-                { id: 'e2', formula: `${O('A')} ∩ ${O('B')}`, text: "Aの補集合とBの補集合の積集合", correct: ["00"], explanation: "Aの外側であり、かつBの外側でもある領域です。さっきの「和集合の補集合」と同じ領域ですね！これがド・モルガンの法則です。" },
-                { id: 'e3', formula: O('A ∩ B'), text: "AとBの積集合の補集合", correct: ["00", "01", "10"], explanation: "AとBが重なっている部分「以外」のすべての領域です。" },
-                { id: 'e4', formula: `${O('A')} ∪ ${O('B')}`, text: "Aの補集合とBの補集合の和集合", correct: ["00", "01", "10"], explanation: "Aの外側、またはBの外側である領域です。これも「積集合の補集合」と同じ領域になります！" },
-                { id: 'e5', formula: O(I(`${O('A')} ∩ ${O('B')}`)), text: "(Aの補集合とBの補集合の積集合)の補集合", correct: ["10", "01", "11"], explanation: "ド・モルガンの法則を逆に使うと、A ∪ B になります。2つのどちらかに入っている領域です。" },
-                { id: 'e6', formula: O(I(`${O('A')} ∪ ${O('B')}`)), text: "(Aの補集合とBの補集合の和集合)の補集合", correct: ["11"], explanation: "ド・モルガンの法則により、これは A ∩ B を表します。AとBの両方に入っている重なりの部分です。" },
-                { id: 'e7', formula: `A ∪ ${O('B')}`, text: "Aと、Bの補集合の和集合", correct: ["10", "11", "00"], explanation: "「Aに入っている」か「Bの外側である」領域をすべて塗ります。Bだけに入っている領域以外すべてになります。" },
-                { id: 'e8', formula: `${O('A')} ∩ B`, text: "Aの補集合と、Bの積集合", correct: ["01"], explanation: "「Aの外側」であり、かつ「Bに入っている」領域。つまり、BからAの重なりを引いた三日月型の部分です。" },
-                { id: 'e9', formula: O('A ∩ (A ∪ B)'), text: "「A」と「AまたはB」の積集合、の補集合", correct: ["00", "01"], explanation: "「A」と「AまたはB」が重なる部分は、結局「A」だけです（吸収法則）。その補集合なので、Aの外側すべてになります。" },
-                { id: 'e10', formula: `${O('A')} ∪ (A ∩ B)`, text: "Aの補集合、または「AとBの積集合」", correct: ["00", "01", "11"], explanation: "「Aの外側すべて」と「両方が重なっている部分」を合わせた領域です。Aだけに入っている三日月部分以外すべてになります。" },
-                { id: 'e11', formula: `${O('A ∩ B')} ∩ A`, text: "AとBの積集合の補集合、かつ A", correct: ["10"], explanation: "「重なり部分以外」のうち、「Aに入っている」領域。つまりAだけに入っている三日月型の部分になります。" },
-                { id: 'e12', formula: O(`A ∪ ${O('A')}`), text: "「A」と「Aの補集合」の和集合、の補集合", correct: [], explanation: "引っかけ問題！Aとその外側を合わせると「全体」になります。その否定なので「どこにもない」が正解。何も塗らないのが大正解です！" }
-            ],
-            medium: [
-                { id: 'm1', formula: O(`A ∩ ${O('B')}`), text: "(Aと、Bの補集合の積集合)の補集合", correct: ["00", "01", "11"], explanation: "ド・モルガンの法則により、~A ∪ B と同じになります。Aの外側、またはBの内側であるすべての領域です。" },
-                { id: 'm2', formula: `${O('A')} ∩ ${O(O('B'))}`, text: "Aの補集合と、Bの「補集合の補集合」の積集合", correct: ["01"], explanation: "2重のバー（否定の否定）は打ち消し合って元に戻ります！つまり ~A ∩ B となり、Bだけに属する領域になります。" },
-                { id: 'm3', formula: O(`${O('A ∪ B')} ∪ (A ∩ B)`), text: "(AとBの外側)と(積集合)を合わせた領域の、全体の補集合", correct: ["10", "01"], explanation: "内側は「両方の外側」と「両方の内側」を合わせた領域。その全体を否定するので、「どちらか片方だけ」の領域になります。" },
-                { id: 'm4', formula: O(I(`${O('A')} ∪ B`)), text: "(Aの補集合とBの和集合)の補集合", correct: ["10"], explanation: "大きなバーに注目してド・モルガンを使うと、A ∩ ~B になります。Aだけに属する領域ですね！" },
-                { id: 'm5', formula: O(`A ∪ ${O('B')}`), text: "(Aと、Bの補集合の和集合)の補集合", correct: ["01"], explanation: "ド・モルガンの法則により、~A ∩ B になります。Aの外側かつBの内側、つまりBだけの領域です。" },
-                { id: 'm6', formula: O(`${O('A')} ∩ B`), text: "(Aの補集合とBの積集合)の補集合", correct: ["00", "10", "11"], explanation: "ド・モルガンの法則を使うと、A ∪ ~B となります。Bだけに入っている部分「以外」のすべてです。" },
-                { id: 'm7', formula: `A ∩ ${O('A ∩ B')}`, text: "Aと、「AとBの積集合の補集合」の積集合", correct: ["10"], explanation: "「Aの中」であり、かつ「AとBの重なり以外」。つまり、Aだけの領域を取り出す式です。" },
-                { id: 'm8', formula: `${O('A ∪ B')} ∪ (A ∩ B)`, text: "和集合の補集合と、積集合の和集合", correct: ["00", "11"], explanation: "「両方の外側」と「両方の内側（重なり）」を足し合わせた領域。排他的論理和のちょうど逆ですね。" },
-                { id: 'm9', formula: O(I(`${O('A')} ∩ ${O('B')}`)), text: "(Aの補集合とBの補集合の積集合)の補集合", correct: ["10", "01", "11"], explanation: "大きなバーに対してド・モルガンを適用すると、なんとただの A ∪ B に戻ります！" },
-                { id: 'm10', formula: `${O('A ∪ B')} ∩ ${O('A ∩ B')}`, text: "和集合の補集合、かつ積集合の補集合", correct: ["00"], explanation: "「AかBのどちらかに入っている領域以外」と「重なり以外」の共通部分は、結局「どちらにも入っていない外側」になります。" },
-                { id: 'm11', formula: `${O('A ∪ B')} ∩ A`, text: "和集合の補集合、かつ A", correct: [], explanation: "「AとBのどちらにも入っていない外側」でありながら「Aに入っている」領域は…存在しません！何も塗らないのが正解です。" },
-                { id: 'm12', formula: `${O(I(`${O('A')} ∪ B`))} ∪ B`, text: "(Aの補集合とBの和集合)の補集合、または B", correct: ["10", "01", "11"], explanation: "左側をド・モルガンで整理すると (A ∩ ~B) 。それに B を合わせるので、結果として A ∪ B と同じ領域になります！" }
-            ],
-            hard: [
-                { id: 'h1', formula: O('A ∪ B ∪ C'), text: "A,B,Cの和集合の補集合", correct: ["000"], explanation: "3つの円のどれにも入っていない「外側」の領域です。" },
-                { id: 'h2', formula: `${O('A')} ∩ ${O('B')} ∩ ${O('C')}`, text: "A,B,Cの補集合の積集合", correct: ["000"], explanation: "3つの集合になってもド・モルガンの法則は成り立ちます！和集合の否定は、それぞれの否定の積集合です。" },
-                { id: 'h3', formula: O('A ∩ B ∩ C'), text: "A,B,Cの積集合の補集合", correct: ["000", "001", "010", "011", "100", "101", "110"], explanation: "3つすべてが重なっている真ん中「以外」のすべての領域です。" },
-                { id: 'h4', formula: `${O('A')} ∪ ${O('B')} ∪ ${O('C')}`, text: "A,B,Cの補集合の和集合", correct: ["000", "001", "010", "011", "100", "101", "110"], explanation: "積集合の否定は、それぞれの否定の和集合になります。集合が増えても美しい法則ですね！" },
-                { id: 'h5', formula: `${O('A ∪ B')} ∩ ${O('C')}`, text: "AとBの和集合の補集合、かつCの補集合", correct: ["000"], explanation: "Aの外側、Bの外側、さらにCの外側。つまり ~(A ∪ B ∪ C) と同じくすべての外側です！" },
-                { id: 'h6', formula: `${O('A ∩ B')} ∪ ${O('C')}`, text: "AとBの積集合の補集合、またはCの補集合", correct: ["000", "001", "010", "100", "011", "101", "110"], explanation: "積集合に入っておらず、さらにCにも入っていない部分の和集合。これは ~(A ∩ B ∩ C) と同じ領域になります！" },
-                { id: 'h7', formula: `A ∩ ${O('B ∪ C')}`, text: "Aと、(BとCの和集合)の補集合の積集合", correct: ["100"], explanation: "「Aに入っている」かつ「BにもCにも入っていない」。つまりAの円のうち、他の円と重なっていない部分です。" },
-                { id: 'h8', formula: `${O('A ∪ C')} ∩ B`, text: "(AとCの和集合)の補集合、かつB", correct: ["010"], explanation: "「AにもCにも入っていない」かつ「Bに入っている」。Bの円のうち、他の円と重なっていない単独の部分ですね。" },
-                { id: 'h9', formula: `${O('A')} ∩ B ∩ C`, text: "Aの補集合、かつB、かつC", correct: ["011"], explanation: "BとCの両方に入っていて、Aには入っていない領域。BとCの重なりから真ん中を引いた部分です。" },
-                { id: 'h10', formula: `A ∪ ${O('B ∪ C')}`, text: "A、または「BとCの和集合の補集合」", correct: ["100", "110", "101", "111", "000"], explanation: "「Aの円すべて」と「BにもCにも入っていない部分(外側)」を合わせた領域です。" },
-                { id: 'h11', formula: `${O('A ∪ B')} ∪ C`, text: "「AとBの和集合の補集合」、または C", correct: ["000", "001", "101", "011", "111"], explanation: "「AにもBにも入っていない部分(外側)」と「Cの円すべて」を合わせた領域です。" },
-                { id: 'h12', formula: `${O('A')} ∩ ${O('B')} ∩ C`, text: "Aの補集合、かつBの補集合、かつC", correct: ["001"], explanation: "「Aに入っていない」かつ「Bに入っていない」かつ「Cに入っている」。Cの円のうち、他の円と重なっていない単独の部分です。" }
-            ],
-            expert: [
-                { id: 'ex1', formula: `${O('A ∪ B')} ∩ C`, text: "AとBの和集合の補集合、かつ C", correct: ["001"], explanation: "ド・モルガンの法則により、~A ∩ ~B ∩ C と同じです。AでもBでもなく、Cにだけ入っている領域ですね。" },
-                { id: 'ex2', formula: `${O('A ∩ B')} ∩ C`, text: "AとBの積集合の補集合、かつ C", correct: ["001", "011", "101"], explanation: "AとBの両方に入っている部分「以外」で、なおかつCに入っている領域をすべて選びます。" },
-                { id: 'ex3', formula: `${O('A')} ∩ ${O('B ∪ C')}`, text: "Aの補集合、かつ (BとCの和集合)の補集合", correct: ["000"], explanation: "実はこれ、全体を覆う ~(A ∪ B ∪ C) と全く同じ「すべての外側」になります！法則を使って式を整理すると見えてきますね。" },
-                { id: 'ex4', formula: `${O(I(`${O('A')} ∩ ${O('B')}`))} ∩ C`, text: "(Aの補集合とBの補集合の積集合)の補集合、かつ C", correct: ["101", "011", "111"], explanation: "大きなバーに注目！ド・モルガンの法則により、左側の複雑な式は実は (A ∪ B) になります。つまり「AかBのどちらかに入っていて、かつCに入る領域」です。" },
-                { id: 'ex5', formula: `${O('A ∪ B ∪ C')} ∪ (A ∩ B ∩ C)`, text: "和集合の補集合、または3つの積集合", correct: ["000", "111"], explanation: "「どの円にも入っていない外側」と「すべての円が重なるど真ん中」だけを合わせた領域です。" },
-                { id: 'ex6', formula: O(I(`${O('A')} ∪ ${O('B')} ∪ ${O('C')}`)), text: "(A,B,Cの補集合の和集合)の補集合", correct: ["111"], explanation: "長〜いバーに注目！全体にド・モルガンを適用すると、なんと A ∩ B ∩ C に。ど真ん中だけを指す式です。" },
-                { id: 'ex7', formula: O(I(`${O('A ∪ B')} ∩ ${O('C')}`)), text: "(「AとBの和集合の補集合」かつ「Cの補集合」)の全体補集合", correct: ["001", "010", "011", "100", "101", "110", "111"], explanation: "内側は ~A ∩ ~B ∩ ~C (すべての外側) です。その否定なので、外側「以外」のすべての領域(A ∪ B ∪ C)になります！" },
-                { id: 'ex8', formula: `${O('A ∩ B')} ∪ ${O('B ∩ C')}`, text: "AとBの積集合の補集合、またはBとCの積集合の補集合", correct: ["000", "001", "010", "011", "100", "101", "110"], explanation: "「AとBの重なり以外」と「BとCの重なり以外」を合わせます。実はこれ、真ん中の(A ∩ B ∩ C)以外すべてになります。" },
-                { id: 'ex9', formula: O(I(`${O('A ∩ B')} ∪ C`)), text: "(「AとBの積集合の補集合」またはC)の全体補集合", correct: ["110"], explanation: "全体にド・モルガンを使うと (A ∩ B) ∩ ~C になります。AとBが重なっていて、Cには入っていない領域だけが残ります。" },
-                { id: 'ex10', formula: `${O('A ∪ B')} ∪ ${O('B ∪ C')}`, text: "「AとBの和集合の補集合」または「BとCの和集合の補集合」", correct: ["000", "100", "001"], explanation: "法則で整理すると ~B ∩ (~A ∪ ~C) となります。「Bに入っておらず、かつAかCのどちらかにも入っていない」領域です。" },
-                { id: 'ex11', formula: O(I(`A ∪ ${O('B ∪ C')}`)), text: "(A、または「BとCの和集合の補集合」)の全体補集合", correct: ["010", "001", "011"], explanation: "全体にド・モルガンを使うと ~A ∩ (B ∪ C) に。Aには入っておらず、BかCには入っている領域になります。" },
-                { id: 'ex12', formula: O('(A ∩ B) ∪ (B ∩ C) ∪ (C ∩ A)'), text: "「2つ以上が重なっているすべての領域」の補集合", correct: ["000", "100", "010", "001"], explanation: "重なり合っている部分をすべて否定します。結果として「どれとも重なっていない単独の領域」と「全体の外側」だけが残ります。" }
-            ]
-        };
+              <div className="relative mx-auto max-w-[400px]">
+                <canvas
+                  ref={canvasRef}
+                  onClick={handleCanvasClick}
+                  className={`w-full h-auto bg-white rounded-xl shadow-inner border-2 ${
+                    !hasChecked
+                      ? 'border-blue-100 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all'
+                      : 'border-slate-200 cursor-default'
+                  }`}
+                  style={{ aspectRatio: '4 / 3' }}
+                />
+              </div>
 
-        // === ゲームのステート管理 ===
-        const QUESTIONS_PER_PLAY = 4;
-        
-        let gameState = 'menu'; // 'menu', 'playing', 'result'
-        let currentLevel = 'easy';
-        let currentProblemIndex = 0;
-        let shuffledProblems = [];
-        let selectedRegions = [];
-        let hasChecked = false;
-        let isCorrect = false;
-        let score = 0;
-        let playedProblemIds = new Set();
+              <div className="mt-8">
+                {!hasChecked ? (
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={() => setSelectedRegions([])}
+                      disabled={selectedRegions.length === 0}
+                      className="flex-1 py-4 px-2 rounded-xl font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors flex items-center justify-center text-sm md:text-base"
+                    >
+                      <RotateCcw className="w-5 h-5 md:mr-2" />
+                      <span className="hidden md:inline">クリア</span>
+                    </button>
 
-        // === 初期化とUI更新 ===
+                    <button
+                      onClick={handleCheck}
+                      className="flex-[2] py-4 px-4 rounded-xl font-bold bg-blue-600 text-white shadow-md hover:bg-blue-700 hover:shadow-lg transition-all active:scale-[0.98] flex items-center justify-center text-lg"
+                    >
+                      <CheckCircle2 className="w-6 h-6 mr-2" />
+                      これで判定！
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    <ResultFeedback
+                      isCorrect={isCorrect}
+                      explanation={currentProblem.explanation}
+                    />
 
-        document.addEventListener('DOMContentLoaded', () => {
-            lucide.createIcons(); // 初期のアイコン生成
-            render();
-            
-            // イベントリスナーの登録
-            document.getElementById('btn-quit').addEventListener('click', goToMenu);
-            document.getElementById('game-canvas').addEventListener('click', handleCanvasClick);
-            document.getElementById('btn-clear').addEventListener('click', () => {
-                selectedRegions = [];
-                updatePlayingUI();
-                drawCanvas();
-            });
-            document.getElementById('btn-check').addEventListener('click', handleCheck);
-            document.getElementById('btn-next').addEventListener('click', nextProblem);
-        });
+                    <button
+                      onClick={nextProblem}
+                      className="w-full py-4 px-4 rounded-xl font-bold bg-slate-800 text-white shadow-md hover:bg-slate-900 transition-all active:scale-[0.98] flex items-center justify-center text-lg"
+                    >
+                      {currentProblemIndex === shuffledProblems.length - 1
+                        ? '結果を見る'
+                        : '次の問題へ'}
+                      <ArrowRight className="w-6 h-6 ml-2" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
-        // 画面の表示切り替え
-        function render() {
-            document.getElementById('view-menu').classList.add('hidden');
-            document.getElementById('view-playing').classList.add('hidden');
-            document.getElementById('view-result').classList.add('hidden');
-            document.getElementById('btn-quit').classList.add('hidden');
+        {gameState === 'result' && (
+          <div className="animate-in zoom-in duration-500">
+            <div className="bg-white rounded-3xl p-8 shadow-xl border border-slate-100 text-center py-12">
+              <Award className="w-24 h-24 mx-auto text-yellow-500 mb-6 drop-shadow-md" />
+              <h2 className="text-3xl font-extrabold mb-2 text-slate-900">結果発表</h2>
+              <div className="text-slate-500 mb-3 font-medium">{levelNames[level]}</div>
+              <div className="text-slate-500 mb-6 text-sm">
+                プレイヤー名: <span className="font-bold">{playerName || '名無し'}</span>
+              </div>
 
-            if (gameState === 'menu') {
-                document.getElementById('view-menu').classList.remove('hidden');
-            } else if (gameState === 'playing') {
-                document.getElementById('view-playing').classList.remove('hidden');
-                document.getElementById('btn-quit').classList.remove('hidden');
-                updatePlayingUI();
-                drawCanvas();
-            } else if (gameState === 'result') {
-                document.getElementById('view-result').classList.remove('hidden');
-                document.getElementById('btn-quit').classList.remove('hidden');
-                updateResultUI();
-            }
-            lucide.createIcons();
-        }
+              <div className="text-6xl font-black text-blue-600 mb-6 font-serif">
+                {score}{' '}
+                <span className="text-3xl text-slate-400 font-sans">
+                  / {shuffledProblems.length}
+                </span>
+              </div>
 
-        // ゲーム開始
-        window.startGame = function(level) {
-            currentLevel = level;
-            const allProblems = problemSets[level];
-            let availableProblems = allProblems.filter(p => !playedProblemIds.has(p.id));
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-8 inline-block">
+                <p className="text-lg font-bold text-slate-800">
+                  {score === shuffledProblems.length
+                    ? '完璧！ド・モルガンマスターです！🎉'
+                    : score >= shuffledProblems.length / 2
+                    ? 'よくできました！法則が見えてきたね！👍'
+                    : 'もう一度挑戦して法則をマスターしよう！💪'}
+                </p>
+              </div>
 
-            // 問題が足りない場合は履歴をリセット
-            if (availableProblems.length < QUESTIONS_PER_PLAY) {
-                allProblems.forEach(p => playedProblemIds.delete(p.id));
-                availableProblems = [...allProblems];
-            }
-
-            // ランダムに選出
-            const shuffled = [...availableProblems]
-                .sort(() => 0.5 - Math.random())
-                .slice(0, QUESTIONS_PER_PLAY);
-
-            // 履歴に登録
-            shuffled.forEach(p => playedProblemIds.add(p.id));
-
-            shuffledProblems = shuffled;
-            currentProblemIndex = 0;
-            score = 0;
-            selectedRegions = [];
-            hasChecked = false;
-            
-            gameState = 'playing';
-            render();
-        };
-
-        // メニューに戻る
-        window.goToMenu = function() {
-            gameState = 'menu';
-            render();
-        };
-
-        // 次の問題へ
-        function nextProblem() {
-            if (currentProblemIndex === shuffledProblems.length - 1) {
-                gameState = 'result';
-                render();
-            } else {
-                currentProblemIndex++;
-                selectedRegions = [];
-                hasChecked = false;
-                updatePlayingUI();
-                drawCanvas();
-            }
-        }
-
-        // === キャンバス操作とロジック ===
-
-        function handleCanvasClick(e) {
-            if (hasChecked) return;
-
-            const canvas = document.getElementById('game-canvas');
-            const rect = canvas.getBoundingClientRect();
-            
-            // 論理サイズ(400x300)への座標マッピング
-            const scaleX = 400 / rect.width;
-            const scaleY = 300 / rect.height;
-            const x = (e.clientX - rect.left) * scaleX;
-            const y = (e.clientY - rect.top) * scaleY;
-            
-            const getRegion = (currentLevel === 'easy' || currentLevel === 'medium') ? getRegionCode2 : getRegionCode3;
-            const region = getRegion(x, y);
-            
-            // 選択切り替え
-            if (selectedRegions.includes(region)) {
-                selectedRegions = selectedRegions.filter(r => r !== region);
-            } else {
-                selectedRegions.push(region);
-            }
-            
-            updatePlayingUI(); // クリアボタンの活性化など
-            drawCanvas();
-        }
-
-        function handleCheck() {
-            const currentProblem = shuffledProblems[currentProblemIndex];
-
-            if (selectedRegions.length === 0 && currentProblem.correct.length !== 0) {
-                alert("ベン図の領域をタップして色を塗ってください！");
-                return;
-            }
-            
-            const correct = 
-                selectedRegions.length === currentProblem.correct.length &&
-                currentProblem.correct.every(r => selectedRegions.includes(r));
-                
-            isCorrect = correct;
-            if (correct) {
-                score++;
-            } else {
-                // 不正解の場合は正解の領域を強制表示
-                selectedRegions = [...currentProblem.correct];
-            }
-            hasChecked = true;
-            
-            updatePlayingUI();
-            drawCanvas();
-        }
-
-        // === 描画・UI更新処理 ===
-
-        function updatePlayingUI() {
-            const currentProblem = shuffledProblems[currentProblemIndex];
-            
-            // プログレスバー・スコア
-            document.getElementById('progress-text').innerText = `問題 ${currentProblemIndex + 1} / ${shuffledProblems.length}`;
-            document.getElementById('score-text').innerText = `スコア: ${score}`;
-            document.getElementById('progress-bar').style.width = `${(currentProblemIndex / shuffledProblems.length) * 100}%`;
-            
-            // 問題テキスト
-            document.getElementById('problem-formula').innerHTML = currentProblem.formula;
-            document.getElementById('problem-text').innerText = currentProblem.text;
-            
-            // キャンバスのスタイル（クリック可/不可）
-            const canvas = document.getElementById('game-canvas');
-            if (!hasChecked) {
-                canvas.className = 'w-full h-auto bg-white rounded-xl shadow-inner border-2 border-blue-100 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all';
-            } else {
-                canvas.className = 'w-full h-auto bg-white rounded-xl shadow-inner border-2 border-slate-200 cursor-default';
-            }
-
-            // クリアボタンの活性状態
-            const btnClear = document.getElementById('btn-clear');
-            if (selectedRegions.length === 0) {
-                btnClear.disabled = true;
-                btnClear.classList.add('opacity-40', 'cursor-not-allowed');
-            } else {
-                btnClear.disabled = false;
-                btnClear.classList.remove('opacity-40', 'cursor-not-allowed');
-            }
-
-            // アクションエリアの切り替え
-            if (!hasChecked) {
-                document.getElementById('action-uncheck').classList.remove('hidden');
-                document.getElementById('action-checked').classList.add('hidden');
-            } else {
-                document.getElementById('action-uncheck').classList.add('hidden');
-                document.getElementById('action-checked').classList.remove('hidden');
-                
-                // フィードバック領域の設定
-                const fbContainer = document.getElementById('feedback-container');
-                const fbIcon = document.getElementById('feedback-icon');
-                const fbTitle = document.getElementById('feedback-title');
-                
-                document.getElementById('feedback-explanation').innerText = currentProblem.explanation;
-                
-                if (isCorrect) {
-                    fbContainer.className = 'mt-6 p-5 rounded-2xl border-2 shadow-sm animate-in bg-green-50 border-green-200 text-green-800';
-                    fbIcon.innerHTML = '<i data-lucide="check-circle-2" class="w-7 h-7 text-green-500"></i>';
-                    fbTitle.innerText = '大正解！';
-                } else {
-                    fbContainer.className = 'mt-6 p-5 rounded-2xl border-2 shadow-sm animate-in bg-red-50 border-red-200 text-red-800';
-                    fbIcon.innerHTML = '<i data-lucide="x-circle" class="w-7 h-7 text-red-500"></i>';
-                    fbTitle.innerText = 'ざんねん… 正解の領域を表示しました。';
-                }
-                
-                // 次へボタンのテキスト
-                const btnNext = document.getElementById('btn-next');
-                if (currentProblemIndex === shuffledProblems.length - 1) {
-                    btnNext.innerHTML = '結果を見る <i data-lucide="arrow-right" class="w-6 h-6 ml-2"></i>';
-                } else {
-                    btnNext.innerHTML = '次の問題へ <i data-lucide="arrow-right" class="w-6 h-6 ml-2"></i>';
-                }
-                lucide.createIcons();
-            }
-        }
-
-        function updateResultUI() {
-            const levelNames = {
-                'easy': '初級コース',
-                'medium': '中級コース',
-                'hard': '上級コース',
-                'expert': '応用コース'
-            };
-            document.getElementById('result-level').innerText = levelNames[currentLevel];
-            document.getElementById('result-score').innerText = score;
-            document.getElementById('result-total').innerText = `/ ${shuffledProblems.length}`;
-            
-            const msgEl = document.getElementById('result-message');
-            if (score === shuffledProblems.length) {
-                msgEl.innerText = '完璧！ド・モルガンマスターです！🎉';
-            } else if (score >= shuffledProblems.length / 2) {
-                msgEl.innerText = 'よくできました！法則が見えてきたね！👍';
-            } else {
-                msgEl.innerText = 'もう一度挑戦して法則をマスターしよう！💪';
-            }
-        }
-
-        function drawCanvas() {
-            const canvas = document.getElementById('game-canvas');
-            if (!canvas) return;
-            const ctx = canvas.getContext('2d');
-            
-            const logicalWidth = 400;
-            const logicalHeight = 300;
-            const dpr = window.devicePixelRatio || 1;
-            
-            canvas.width = logicalWidth * dpr;
-            canvas.height = logicalHeight * dpr;
-            ctx.scale(dpr, dpr);
-            
-            // オフスクリーンキャンバスでピクセル操作（塗りつぶし）
-            const offCanvas = document.createElement('canvas');
-            offCanvas.width = logicalWidth;
-            offCanvas.height = logicalHeight;
-            const offCtx = offCanvas.getContext('2d');
-            
-            const imgData = offCtx.createImageData(logicalWidth, logicalHeight);
-            const data = imgData.data;
-            
-            const getRegion = (currentLevel === 'easy' || currentLevel === 'medium') ? getRegionCode2 : getRegionCode3;
-            // Tailwindカラー値: blue-200, slate-50
-            const colorSelected = [191, 219, 254, 255]; 
-            const colorUnselected = [248, 250, 252, 255]; 
-            
-            for (let y = 0; y < logicalHeight; y++) {
-                for (let x = 0; x < logicalWidth; x++) {
-                    const region = getRegion(x, y);
-                    const isSelected = selectedRegions.includes(region);
-                    const color = isSelected ? colorSelected : colorUnselected;
-                    
-                    const index = (y * logicalWidth + x) * 4;
-                    data[index] = color[0];
-                    data[index + 1] = color[1];
-                    data[index + 2] = color[2];
-                    data[index + 3] = color[3];
-                }
-            }
-            offCtx.putImageData(imgData, 0, 0);
-            
-            // メインキャンバスに反映
-            ctx.drawImage(offCanvas, 0, 0);
-            
-            // 境界線と文字（ベクター描画）
-            ctx.strokeStyle = '#334155'; // slate-700
-            ctx.lineWidth = 2.5;
-            ctx.font = 'bold 24px serif';
-            ctx.fillStyle = '#0f172a'; // slate-900
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            
-            if (currentLevel === 'easy' || currentLevel === 'medium') {
-                ctx.beginPath(); ctx.arc(150, 150, 80, 0, Math.PI * 2); ctx.stroke();
-                ctx.beginPath(); ctx.arc(250, 150, 80, 0, Math.PI * 2); ctx.stroke();
-                ctx.fillText('A', 110, 150);
-                ctx.fillText('B', 290, 150);
-            } else {
-                ctx.beginPath(); ctx.arc(160, 130, 75, 0, Math.PI * 2); ctx.stroke();
-                ctx.beginPath(); ctx.arc(240, 130, 75, 0, Math.PI * 2); ctx.stroke();
-                ctx.beginPath(); ctx.arc(200, 200, 75, 0, Math.PI * 2); ctx.stroke();
-                ctx.fillText('A', 130, 100);
-                ctx.fillText('B', 270, 100);
-                ctx.fillText('C', 200, 230);
-            }
-            
-            // 全体集合 U の枠
-            ctx.strokeRect(1, 1, logicalWidth - 2, logicalHeight - 2);
-            ctx.font = 'italic 20px serif';
-            ctx.fillText('U', 25, 25);
-        }
-    </script>
-</body>
-</html>
+              <button
+                onClick={() => setGameState('menu')}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-2xl shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center text-lg"
+              >
+                タイトルに戻る
+              </button>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
